@@ -79,4 +79,56 @@ def play_sequence(length):
       
 
 
-play_sequence(4)
+#play_sequence(10)
+
+#function to play the sequence and get player input
+def play_sequence_and_get_input():
+    global sequence
+    sequence_length = len(sequence) + 1
+    play_sequence(sequence_length)
+
+    #wait for player input
+    for i, superheroes in enumerate(sequence):
+        waiting_for_input = True
+        start_time = pygame.time.get_ticks() #start new timer``
+        while waiting_for_input:
+            for event in pygame.event.get():
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    # Check if the mouse click is on the superhero image
+                    image_rect = superheroes[superheroes]["image"].get_rect()
+                    image_rect.topleft = ((superheroes - 1) * 100 + 25, 100)
+
+                    if image_rect.collidepoint(mouse_x, mouse_y):
+                        superheroes[superheroes]["sound"].play()
+                        display_image()
+                        pygame.time.delay(1000)
+                        waiting_for_input = False
+                    else:
+                        return False  # Player clicked wrong image
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        sys.exit
+    return True #correct input, continue the game
+
+pygame.mixer.init()
+
+game_over = False
+
+while not game_over:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+
+    #play sound
+    if play_sequence_and_get_input():
+        display_message("Correct! Next round...", (0, 255, 0))
+        pygame.time.delay(2000)
+    else:
+        display_message("Wrong! Game Over!", (255, 0, 0))
+        pygame.time.delay(2000)
+        game_over = True
+
+pygame.quit()
+sys.exit()
