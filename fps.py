@@ -68,10 +68,8 @@ while running:
 
         # Shooting
         if event.type == pygame.MOUSEBUTTONDOWN and ammo > 0:
-            shoot_sound.play()
             ammo -= 1
             if enemy.collidepoint(mouse_x, mouse_y):
-                hit_sound.play()
                 score += 1
                 enemy = spawn_enemy()
             else:
