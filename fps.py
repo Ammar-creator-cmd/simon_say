@@ -11,10 +11,14 @@ pygame.display.set_caption("Raycasting FPS in Pure Python")
 clock = pygame.time.Clock()
 FPS = 60
 
+# Mouse look setup
+pygame.event.set_grab(True)
+pygame.mouse.set_visible(False)
+mouse_look_active = False
+
 # Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-BLUE = (0, 0, 255)
 RED = (255, 0, 0)
 DARKGRAY = (40, 40, 40)
 
@@ -27,18 +31,24 @@ MAP = [
     '1111111111'
 ]
 TILE = 100
-MAP_WIDTH = len(MAP[0]) * TILE
-MAP_HEIGHT = len(MAP) * TILE
 
 # Player setup
 player_x, player_y = 150, 150
 player_angle = 0
 player_speed = 3
-rotation_speed = 0.04
 score = 0
+player_health = 100
+
+# Ammo and reloading
+ammo = 6
+max_ammo = 6
+reloading = False
+reload_timer = 0
 
 # Enemies
 enemies = []
+dead_enemies = []
+enemy_attack_timer = 0
 for _ in range(5):
     while True:
         x = random.randint(1, len(MAP[0]) - 2) * TILE + TILE // 2
@@ -47,14 +57,8 @@ for _ in range(5):
             enemies.append([x, y])
             break
 
-def draw_map():
-    for y, row in enumerate(MAP):
-        for x, char in enumerate(row):
-            if char == '1':
-                pygame.draw.rect(screen, DARKGRAY, (x*TILE, y*TILE, TILE, TILE))
-    pygame.draw.circle(screen, BLUE, (int(player_x), int(player_y)), 8)
-    for ex, ey in enemies:
-        pygame.draw.circle(screen, RED, (int(ex), int(ey)), 6)
+# Muzzle flash
+muzzle_flash_timer = 0
 
 def cast_rays():
     num_rays = 120
@@ -87,8 +91,12 @@ def move_player():
     global player_x, player_y, player_angle
     keys = pygame.key.get_pressed()
 
-    if keys[pygame.K_LEFT]: player_angle -= rotation_speed
-    if keys[pygame.K_RIGHT]: player_angle += rotation_speed
+    if mouse_look_active:
+        mouse_dx = pygame.mouse.get_rel()[0]
+        player_angle += mouse_dx * 0.002
+        player_angle %= 2 * math.pi
+    else:
+        pygame.mouse.get_rel()
 
     sin_a = math.sin(player_angle)
     cos_a = math.cos(player_angle)
@@ -119,7 +127,13 @@ def move_player():
             player_y += dy
 
 def shoot():
-    global score
+    global score, muzzle_flash_timer, ammo
+    if reloading or ammo <= 0:
+        return
+
+    ammo -= 1
+    muzzle_flash_timer = 5
+
     sin_a = math.sin(player_angle)
     cos_a = math.cos(player_angle)
 
@@ -128,29 +142,89 @@ def shoot():
         target_y = player_y + depth * sin_a
         for i, (ex, ey) in enumerate(enemies):
             if math.hypot(target_x - ex, target_y - ey) < 10:
+                dead_enemies.append([ex, ey, 15])
                 del enemies[i]
                 score += 1
                 return
 
-# Main loop
-running = True
-while running:
-    screen.fill(BLACK)
-    move_player()
-    cast_rays()
-    draw_map()
+def reload():
+    global reloading, reload_timer
+    if not reloading and ammo < max_ammo:
+        reloading = True
+        reload_timer = 60
 
-    # HUD
-    font = pygame.font.SysFont("Arial", 30)
-    screen.blit(font.render(f"Score: {score}", True, WHITE), (20, 20))
+def update_reload():
+    global reloading, reload_timer, ammo
+    if reloading:
+        reload_timer -= 1
+        if reload_timer <= 0:
+            ammo = max_ammo
+            reloading = False
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            shoot()
+def enemy_attack():
+    global player_health, enemy_attack_timer
+    if enemy_attack_timer > 0:
+        enemy_attack_timer -= 1
+        return
 
-    pygame.display.flip()
-    clock.tick(FPS)
+    for ex, ey in enemies:
+        if math.hypot(ex - player_x, ey - player_y) < 50:
+            player_health -= 10
+            enemy_attack_timer = 60
+            break
 
-pygame.quit()
+def draw_enemies_3d():
+    for ex, ey in enemies:
+        dx = ex - player_x
+        dy = ey - player_y
+        distance = math.hypot(dx, dy)
+        angle = math.atan2(dy, dx) - player_angle
+
+        if -math.pi/6 < angle < math.pi/6:
+            screen_x = WIDTH // 2 + (angle / (math.pi / 3)) * WIDTH
+            size = min(5000 / (distance + 0.1), 80)
+            top = HALF_HEIGHT - size // 2
+
+            pygame.draw.rect(screen, RED, (screen_x - size // 4, top, size // 2, size))
+            pygame.draw.circle(screen, WHITE, (int(screen_x), int(top)), int(size // 4))
+            pygame.draw.circle(screen, BLACK, (int(screen_x - size // 8), int(top - size // 8)), int(size // 16))
+            pygame.draw.circle(screen, BLACK, (int(screen_x + size // 8), int(top - size // 8)), int(size // 16))
+
+def draw_dead_enemies():
+    for enemy in dead_enemies[:]:
+        ex, ey, timer = enemy
+        dx = ex - player_x
+        dy = ey - player_y
+        distance = math.hypot(dx, dy)
+        angle = math.atan2(dy, dx) - player_angle
+
+        if -math.pi/6 < angle < math.pi/6:
+            screen_x = WIDTH // 2 + (angle / (math.pi / 3)) * WIDTH
+            size = min(5000 / (distance + 0.1), 80)
+            top = HALF_HEIGHT - size // 2
+            alpha = int(255 * (timer / 15))
+
+            s = pygame.Surface((size // 2, size), pygame.SRCALPHA)
+            pygame.draw.rect(s, (255, 0, 0, alpha), (0, 0, size // 2, size))
+            screen.blit(s, (screen_x - size // 4, top))
+
+            s2 = pygame.Surface((size, size), pygame.SRCALPHA)
+            pygame.draw.circle(s2, (255, 255, 255, alpha), (size // 2, size // 2), size // 4)
+            screen.blit(s2, (screen_x - size // 2, top - size // 4))
+
+        enemy[2] -= 1
+        if enemy[2] <= 0:
+            dead_enemies.remove(enemy)
+
+def draw_weapon():
+    weapon_width, weapon_height = 60, 100
+    x = WIDTH // 2 - weapon_width // 2
+    y = HEIGHT - weapon_height - 20
+
+    if reloading:
+        offset = (reload_timer % 20) - 10  # simple up/down animation
+        y += offset
+
+    pygame.draw.rect(screen, DARKGRAY, (x + 20, y + 60, 20, 40))  # handle
+    pygame.draw.rect(screen, BLACK, (x + 25, y + 20, 10, 40))     # barrel
+    pygame.draw.circle(screen, RED, (x + 30, y + 70), 4)  
