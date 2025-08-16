@@ -53,11 +53,15 @@ asteroids = []
 clock = pygame.time.Clock()
 game_running = True
 
+# Initialize background positions for scrolling
+background1_y = 0
+background2_y = window_height
+
 def close_game():
     pygame.quit()
     sys.exit()
 
-#f to update the bg position for scrolling
+# Function to update the background position for scrolling
 def update_background():
     global background1_y, background2_y
     background1_y = (background1_y + 1) % window_height
