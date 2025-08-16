@@ -190,6 +190,17 @@ def draw_enemies_3d():
             pygame.draw.circle(screen, BLACK, (int(screen_x - size // 8), int(top - size // 8)), int(size // 16))
             pygame.draw.circle(screen, BLACK, (int(screen_x + size // 8), int(top - size // 8)), int(size // 16))
 
+def draw_crosshair():
+    center_x = WIDTH // 2
+    center_y = HALF_HEIGHT
+    size = 8
+    thickness = 2
+
+    # Horizontal line
+    pygame.draw.rect(screen, WHITE, (center_x - size, center_y - thickness // 2, size * 2, thickness))
+    # Vertical line
+    pygame.draw.rect(screen, WHITE, (center_x - thickness // 2, center_y - size, thickness, size * 2))
+
 def draw_dead_enemies():
     for enemy in dead_enemies[:]:
         ex, ey, timer = enemy
@@ -217,14 +228,93 @@ def draw_dead_enemies():
             dead_enemies.remove(enemy)
 
 def draw_weapon():
-    weapon_width, weapon_height = 60, 100
+    weapon_width = 120
+    weapon_height = 80
     x = WIDTH // 2 - weapon_width // 2
-    y = HEIGHT - weapon_height - 20
+    y = HEIGHT - weapon_height - 30
 
+    # Reload animation bounce
     if reloading:
-        offset = (reload_timer % 20) - 10  # simple up/down animation
+        offset = (reload_timer % 20) - 10
         y += offset
 
-    pygame.draw.rect(screen, DARKGRAY, (x + 20, y + 60, 20, 40))  # handle
-    pygame.draw.rect(screen, BLACK, (x + 25, y + 20, 10, 40))     # barrel
-    pygame.draw.circle(screen, RED, (x + 30, y + 70), 4)  
+    # Gun body
+    pygame.draw.rect(screen, DARKGRAY, (x, y, weapon_width, weapon_height))
+
+    # Barrel
+    barrel_width = 20
+    barrel_height = 40
+    barrel_x = x + weapon_width // 2 - barrel_width // 2
+    barrel_y = y - barrel_height
+    pygame.draw.rect(screen, BLACK, (barrel_x, barrel_y, barrel_width, barrel_height))
+
+    # Grip
+    grip_width = 30
+    grip_height = 50
+    grip_x = x + weapon_width - grip_width - 10
+    grip_y = y + weapon_height - grip_height
+    pygame.draw.rect(screen, (60, 60, 60), (grip_x, grip_y, grip_width, grip_height))
+
+    # Trigger guard
+    pygame.draw.circle(screen, BLACK, (x + weapon_width // 2, y + weapon_height - 10), 8)
+
+    # Muzzle flash (optional visual cue)
+    if muzzle_flash_timer > 0:
+        flash_x = barrel_x + barrel_width // 2
+        flash_y = barrel_y
+        pygame.draw.circle(screen, WHITE, (flash_x, flash_y), 12)
+
+
+# Main game loop
+running = True
+font = pygame.font.SysFont(None, 36)
+draw_crosshair()
+
+while running:
+    screen.fill(BLACK)
+
+    # Event handling
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_r:
+                reload()
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Left click
+                shoot()
+            elif event.button == 3:  # Right click
+                mouse_look_active = not mouse_look_active
+
+    # Game logic
+    move_player()
+    update_reload()
+    enemy_attack()
+
+    # Rendering
+    cast_rays()
+    draw_enemies_3d()
+    draw_dead_enemies()
+    draw_weapon()
+
+    # Muzzle flash effect
+    if muzzle_flash_timer > 0:
+        pygame.draw.rect(screen, WHITE, (WIDTH // 2 - 30, HEIGHT - 120, 60, 60))
+        muzzle_flash_timer -= 1
+
+    # HUD
+    hud_text = f"Health: {player_health}  Ammo: {ammo}/{max_ammo}  Score: {score}"
+    screen.blit(font.render(hud_text, True, WHITE), (20, 20))
+
+    # Game Over
+    if player_health <= 0:
+        game_over_text = font.render("GAME OVER", True, RED)
+        screen.blit(game_over_text, (WIDTH // 2 - 100, HEIGHT // 2))
+        pygame.display.flip()
+        pygame.time.wait(3000)
+        running = False
+
+    pygame.display.flip()
+    clock.tick(FPS)
+
+pygame.quit()
