@@ -21,13 +21,14 @@ spaceship_img = pygame.image.load("space/spaceship-removebg-preview.png").conver
 spaceship_width, spaceship_height = spaceship_img.get_size()
 spaceship_scale = 0.15
 spaceship_img = pygame.transform.scale(spaceship_img, (int(spaceship_width * spaceship_scale), int(spaceship_height * spaceship_scale)))
+spaceship_width, spaceship_height = spaceship_img.get_size()
 
 #spaceship position
 spaceship_x = window_width // 2 - spaceship_width // 2
 spaceship_y = window_height - 50
 spaceship_speed = 3
 
-class asteroid:
+class Asteroid:
     def __init__(self, x, y, image, scale):
         self.x = x
         self.y = y
@@ -36,7 +37,7 @@ class asteroid:
         #resize the asteorid image based on the scale
         self.image = pygame.transform.scale(self.image, (int(self.image.get_width() * self.scale), int(self.image.get_height() * self.scale)))
 
-    def move(self, speed):
+    def move(self, speed=1):  # <-- Add default value
         self.y += speed
         
     def draw(self, window):
@@ -64,13 +65,20 @@ def close_game():
 # Function to update the background position for scrolling
 def update_background():
     global background1_y, background2_y
-    background1_y = (background1_y + 1) % window_height
-    background2_y = (background2_y + 1) % window_height
-    window.blit(background1, (0, background1_y - window_height))
-    window.blit(background2, (0, background2_y - window_height))
-
-    background1_y = 0
-    background2_y = window_height
+    
+    # Update positions
+    background1_y += 1
+    background2_y += 1
+    
+    # Reset positions when backgrounds move off screen
+    if background1_y >= window_height:
+        background1_y = -window_height
+    if background2_y >= window_height:
+        background2_y = -window_height
+        
+    # Draw backgrounds at their current positions
+    window.blit(background1, (0, background1_y))
+    window.blit(background2, (0, background2_y))
 
 
 while game_running:
@@ -92,9 +100,35 @@ while game_running:
     
     window.fill((0, 0, 0))
     update_background()
-    window.blit(spaceship_img, (spaceship_x, spaceship_y))
+    window.blit(spaceship_img, (spaceship_x, spaceship_y)) 
+
+    #asteroid spawn
+    if random.randint(0,100) < 2:
+        asteroid_x = random.randint(30, window_width - 30)
+        asteroid_scale = random.uniform(min_asteroid_scale, max_asteroid_scale)
+        asteroid = Asteroid(asteroid_x, -int(asteroid_height * asteroid_scale), asteroid_img, asteroid_scale)
+        asteroids.append(asteroid)
+
+    #rectangles to represent collisions
+    spaceship_rect = pygame.Rect(spaceship_x, spaceship_y, spaceship_width, spaceship_height)
+
+    #move and draw asteroids
+    for asteroid in asteroids:
+        asteroid.move(1)
+        asteroid_rect = pygame.Rect(asteroid.x, asteroid.y, asteroid.image.get_width(), asteroid.image.get_height())
+        asteroid.draw(window)
+
+        if spaceship_rect.colliderect(asteroid_rect):
+            game_running = False
+            close_game()
+
+    #remove asteroids that have gone off screen
+    asteroids = [asteroid for asteroid in asteroids if asteroid.y < window_height]
+
     pygame.display.update()
     clock.tick(60)
+    
+    
 
 
 
